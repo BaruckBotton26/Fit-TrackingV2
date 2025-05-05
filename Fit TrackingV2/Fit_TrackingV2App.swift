@@ -8,10 +8,10 @@
 import SwiftUI
 
 @main
-struct Fit_TrackingV2App: App {
+struct Fit_TrackingApp: App {
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            AppRootView()
         }
     }
 }
