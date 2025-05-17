@@ -26,7 +26,9 @@ struct TabBarContainerView: View {
                     Text("feedback")
                 }
         }
+      
     }
+    
 }
 
 #Preview {

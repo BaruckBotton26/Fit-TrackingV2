@@ -15,9 +15,13 @@ struct InicioView: View {
                 ZStack(alignment: .top) {
                     Color.white.ignoresSafeArea()
                     VStack(spacing:20){
-                        Rectangle()
-                            .frame(width: 365, height: 400)
-                            .padding(.top, 0)
+                        Image("hombre-guapo-joven-entrenando-gimnasio-culturismo_23-2149552350")
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: 365, height: 400)
+                                .clipped()
+                                .cornerRadius(12)
+                                .padding(.top, 0)
                         
                         Button {
                             viewModel.solicitarPermisoCamara()
