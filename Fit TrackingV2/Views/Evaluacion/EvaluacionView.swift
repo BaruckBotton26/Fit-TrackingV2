@@ -4,7 +4,7 @@
 //
 //  Created by Baruck Botton on 1/05/25.
 //
-
+/*
 import SwiftUI
 
 struct EvaluacionView: View {
@@ -94,6 +94,27 @@ struct EvaluacionView: View {
             }
         }
     }
+*/
+import SwiftUI
+
+struct EvaluacionView: View {
+    @State private var navegarAFinal = false
+    @StateObject private var summary = PostureEvaluationSummary()
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                QuickPoseService(navegarAFinal: $navegarAFinal, summary: summary)
+
+                NavigationLink(destination: FeedbackView(summary: summary),
+                               isActive: $navegarAFinal) {
+                    EmptyView()
+                }
+                .hidden()
+            }
+        }
+    }
+}
 
 #Preview {
     EvaluacionView()

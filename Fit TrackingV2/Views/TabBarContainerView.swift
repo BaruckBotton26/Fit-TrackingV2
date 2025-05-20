@@ -20,17 +20,18 @@ struct TabBarContainerView: View {
                     Image(systemName: "video")
                     Text("evaluacion")
                 }
-            FeedbackView(videoURL: URL(fileURLWithPath: ""))
-                .tabItem{
-                    Image(systemName: "person.fill")
-                    Text("feedback")
-                }
+            /*
+             FeedbackView(videoURL: URL(fileURLWithPath: ""))
+             .tabItem{
+             Image(systemName: "person.fill")
+             Text("feedback")
+             }
+             }
+             */
         }
-      
+        
     }
-    
 }
-
 #Preview {
     TabBarContainerView()
 }
