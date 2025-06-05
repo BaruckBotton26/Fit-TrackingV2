@@ -35,7 +35,6 @@ class HeelLiftDetector {
         
         let leftElevated = (heelL.y < toeL.y - threshold)
         let rightElevated = (heelR.y < toeR.y - threshold)
-        print("🦶 LeftScore: \(leftScore), RightScore: \(rightScore)")
         let detectedIn: String
         if leftElevated && rightElevated {
             detectedIn = "both"

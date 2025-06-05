@@ -10,24 +10,80 @@ import QuickPoseSwiftUI
 import ReplayKit
 
 struct QuickPoseService: View {
-    private var quickPose = QuickPose(sdkKey: "01JTC3H0M71GVAKTPSMJRCN7K2") // register for your free key at dev.quickpose.ai
+    private var quickPose = QuickPose(sdkKey: "01JTC3H0M71GVAKTPSMJRCN7K2")
+    let exercise: ExerciseType
+    enum PushUpPhase { case idle, lowering, pushing }
+    @State private var pushUpPhase: PushUpPhase = .idle
+    @State private var pushDownStart: Date?
+    @State private var pushUpStart: Date?
+    @State private var pushUpRepsTiempos: [(tfe: Double, tfc: Double)] = []
+    @State private var pushUpCounter = QuickPoseThresholdCounter()
     enum SquatPhase { case idle, eccentric, concentric }
+    @State private var squatTracker = SquatPhaseTracker()
+    @State private var pushUpTracker = PushUpPhaseTracker()
     @State private var squatPhase: SquatPhase = .idle
     @State private var eccentricStartTime: Date?
     @State private var concentricStartTime: Date?
+    @State private var bicepCurlTracker = BicepCurlTracker()
+    @State private var bicepCounter = QuickPoseThresholdCounter()
     @State private var squatRepsTiempos: [(tfe: Double, tfc: Double)] = []
     @State private var overlayImage: UIImage?
-    @State private var feedbackText: String = "Inicia cuando quieras"
+    @State private var evaluacionIniciada = false
+    @State private var thumbsUpDetector = QuickPoseDoubleUnchangedDetector(similarDuration: 1.5)
+    @State private var feedbackText: String = "Haz 👍 para comenzar"
     @State private var squatCounter = QuickPoseThresholdCounter()
     @State private var pressCounter = QuickPoseThresholdCounter(enterThreshold: 0.8, exitThreshold: 0.2)
+    @State private var erroresPorRepeticion: [String] = []
+    @State private var erroresDetectadosActuales: Set<String> = []
+    @State private var erroresFrameRepeticion: [String: Int] = [:]
+    @State private var totalFramesRepeticion: Int = 0
+    @State private var valgoFramesSeguidos = 0
+    let umbralValgoFrames = 10
+
     @Binding var navegarAFinal: Bool
     @ObservedObject var summary: PostureEvaluationSummary
-    init(navegarAFinal: Binding<Bool>, summary: PostureEvaluationSummary) {
+    init(navegarAFinal: Binding<Bool>, summary: PostureEvaluationSummary, exercise: ExerciseType) {
         self._navegarAFinal = navegarAFinal
         self.summary = summary
+        self.exercise = exercise
     }
     let umbralROM: Double = 0.85
     
+    func detectarErroresPosturales(landmarks: QuickPose.Landmarks?) -> [String] {
+        guard let landmarks = landmarks else { return [] }
+        var errores: [String] = []
+
+        if let buttWink = ButtWinkDetector(landmarks: landmarks).evaluate(), buttWink.detected {
+            errores.append("Butt Wink (retroversión pélvica)")
+            if let inicio = summary.inicioEvaluacion {
+                let ahora = Date()
+                let segundos = Int(ahora.timeIntervalSince(inicio))
+                DispatchQueue.main.async{
+                    if !summary.segundosDeButtWink.contains(segundos) {
+                        summary.segundosDeButtWink.append(segundos)
+                    }
+                }
+            }
+        }
+
+        if let valgo = ValgoDetector(landmarks: landmarks).evaluate() {
+            if valgo.leftValgo && valgo.rightValgo {
+                errores.append("Valgo bilateral")
+                if let inicio = summary.inicioEvaluacion {
+                    let ahora = Date()
+                    let segundos = Int(ahora.timeIntervalSince(inicio))
+                    DispatchQueue.main.async{
+                        if !summary.segundosDeValgo.contains(segundos) {
+                            summary.segundosDeValgo.append(segundos)
+                        }
+                    }
+                }
+            }
+        }
+
+        return errores
+    }
+
     
     var body: some View {
         GeometryReader { geometry in
@@ -49,6 +105,30 @@ struct QuickPoseService: View {
                         let valgoEvaluacion = summary.valgoFrameData.evaluar()
                         summary.valgoDetectedLeft = valgoEvaluacion.left
                         summary.valgoDetectedRight = valgoEvaluacion.right
+                        
+                        var errores: [String: Any] = [:]
+                               if exercise == .squat {
+                                   errores["valgo_detectado"] = valgoEvaluacion.left || valgoEvaluacion.right
+                                   errores["segundosDeValgo"] = summary.segundosDeValgo.sorted()
+                                   errores["buttWink_detectado"] = !summary.segundosDeButtWink.isEmpty
+                                   errores["segundosDeButtWink"] = summary.segundosDeButtWink.sorted()
+                               }
+
+                               // 🏋️‍♂️ Elegir repeticiones según el ejercicio
+                               var repeticiones: [(Double, Double)] = []
+                               switch exercise {
+                               case .squat: repeticiones = summary.squatRepsTiempos
+                               case .pushUp: repeticiones = summary.pushUpRepsTiempos
+                               case .bicepCurl: repeticiones = summary.bicepCurlReps
+                               }
+
+                               // 📤 Guardar en Firestore
+                               FirebaseService.shared.guardarEvaluacion(
+                                   ejercicio: String(describing: exercise),
+                                   repeticiones: repeticiones,
+                                   errores: errores
+                               )
+
                     }
                        navegarAFinal = true                }) {
                     Text("Finalizar Evaluación")
@@ -65,160 +145,271 @@ struct QuickPoseService: View {
             .frame(width: geometry.size.width)
             .edgesIgnoringSafeArea(.all)
             .onAppear {
-                summary.inicioEvaluacion = Date()
-                quickPose.start(features: [.overlay(.wholeBody), .showPoints(), .fitness(.squats),.rangeOfMotion(.shoulder(side:.left, clockwiseDirection: false)), .rangeOfMotion(.shoulder(side:.right, clockwiseDirection: true))],
-                                onFrame: { status, image, features,  feedback, landmarks in
-                    if case .success(_) = status {
+                quickPose.start(features: [.thumbsUp()], onFrame: { status, image, features, feedback, landmarks in
+                    switch status {
+                    case .success:
                         overlayImage = image
-                        
-                        print("TIPO DE LANDMARKS:", type(of: landmarks))
-                        if let squatProgress = features[.fitness(.squats)]{
-                            if let squatProgress = features[.fitness(.squats)] {
-                                let value = squatProgress.value
-                                let now = Date()
-                                
-                                switch squatPhase {
-                                case .idle:
-                                    if value < 0.1 {
-                                        // Inicia fase excéntrica
-                                        eccentricStartTime = now
-                                        squatPhase = .eccentric
-                                    }
-                                    
-                                case .eccentric:
-                                    if value > 0.9 {
-                                        // Cambia a concéntrica
-                                        if let start = eccentricStartTime {
-                                            let tfe = now.timeIntervalSince(start)
-                                            concentricStartTime = now
-                                            squatPhase = .concentric
-                                            print("🕒 Fase excéntrica: \(tfe)s")
+                        if !evaluacionIniciada {
+                            if let result = features[.thumbsUp()] {
+                                print("👍 Valor detectado: \(result.value)")
+                                thumbsUpDetector.count(result: result.value) {
+                                    if result.value > 0.5 {
+                                        print("👍 Pulgar arriba detectado. Iniciando evaluación...")
+                                        evaluacionIniciada = true
+                                        summary.inicioEvaluacion = Date()
+                                        feedbackText = "Comienza el ejercicio"
+                                        var selectedFeatures: [QuickPose.Feature] = [
+                                            .overlay(.wholeBody),
+                                            .showPoints()
+                                        ]
+                                        
+                                        switch exercise {
+                                        case .squat:
+                                            selectedFeatures.append(.fitness(.squats))
+                                        case .pushUp:
+                                            selectedFeatures.append(.fitness(.pushUps))
+                                        case .bicepCurl:
+                                            selectedFeatures.append(.fitness(.bicepCurls))
                                         }
+                                        
+                                        quickPose.update(features: selectedFeatures)
                                     }
-                                    
-                                case .concentric:
-                                    if value < 0.1 {
-                                        // Fin de repetición
-                                        if let start = concentricStartTime {
-                                            let tfc = now.timeIntervalSince(start)
-                                            if let tfeStart = eccentricStartTime {
-                                                let tfe = start.timeIntervalSince(tfeStart)
-                                                DispatchQueue.main.async {
-                                                    summary.squatRepsTiempos.append((tfe: tfe, tfc: tfc))
+                                }
+                            }
+                        } else {
+                            
+                            /*
+                             summary.inicioEvaluacion = Date()
+                             var selectedFeatures: [QuickPose.Feature] = [
+                             .overlay(.wholeBody),
+                             .showPoints()
+                             ]
+                             
+                             switch exercise {
+                             case .squat:
+                             selectedFeatures.append(.fitness(.squats))
+                             case .pushUp:
+                             selectedFeatures.append(.fitness(.pushUps))
+                             case .bicepCurl:
+                             selectedFeatures.append(.fitness(.bicepCurls))
+                             
+                             }
+                             
+                             quickPose.start(features: selectedFeatures, onFrame: { status, image, features, feedback, landmarks in
+                             if case .success(_) = status{
+                             overlayImage = image
+                             
+                             print("TIPO DE LANDMARKS:", type(of: landmarks))
+                             */
+                            guard let landmarks = landmarks else { return }
+                            let erroresFrame = detectarErroresPosturales(landmarks: landmarks)
+                            erroresDetectadosActuales.formUnion(erroresFrame)
+                            for error in erroresFrame {
+                                erroresFrameRepeticion[error, default: 0] += 1
+                            }
+                            totalFramesRepeticion += 1
+
+                            let valgoDetector = ValgoDetector(landmarks: landmarks)
+                            if let valgo = valgoDetector.evaluate() {
+                                if valgo.leftValgo && valgo.rightValgo {
+                                    valgoFramesSeguidos += 1
+                                } else {
+                                    valgoFramesSeguidos = 0
+                                }
+                                
+                                if valgoFramesSeguidos >= umbralValgoFrames {
+                                    if let inicio = summary.inicioEvaluacion {
+                                        let ahora = Date()
+                                        let segundos = Int(ahora.timeIntervalSince(inicio))
+                                        DispatchQueue.main.async {
+                                            if let ultimo = summary.segundosDeValgo.last {
+                                                if segundos - ultimo >= 2 {
+                                                    summary.segundosDeValgo.append(segundos)
                                                 }
-                                                print("✅ Repetición completa - TFE: \(tfe), TFC: \(tfc)")
+                                            } else {
+                                                summary.segundosDeValgo.append(segundos)
                                             }
-                                            squatPhase = .idle
                                         }
                                     }
                                 }
                             }
-                            let reps = squatCounter.count(squatProgress.value)
-                            let progress = Int(squatProgress.value*100)
-                            feedbackText = "Progreso: \(progress)% | Repeticiones: \(reps.count)"
-                        }
-                        /*
-                         if let romLeft = features[.rangeOfMotion(.shoulder(side: .left, clockwiseDirection: false))],
-                         let romRight = features[.rangeOfMotion(.shoulder(side: .right, clockwiseDirection: true))] {
-                         
-                         let average = (romLeft.value + romRight.value)/2
-                         let normalizedValue = average/180.0
-                         
-                         print("ROM izquierdo: \(romLeft.value)")
-                         print("ROM derecho: \(romRight.value)")
-                         print("💡 ROM mínimo entre ambos: \(normalizedValue)")
-                         
-                         if average > umbralROM {
-                         let reps = pressCounter.count(normalizedValue)
-                         if reps.count > 0 {
-                         feedbackText = "🏋️‍♂️ Press Banca: \(reps.count)"
-                         print("🏋️‍♂️ Press Banca: \(reps.count)")
-                         } else {
-                         print("Movimiento válido, pero aún no completaste la repetición")
-                         }
-                         } else {
-                         // ✅ Esta línea solo se mostrará si realmente NO alcanza el umbral
-                         print("⚠️ Movimiento no alcanza el umbral de \(umbralROM)")
-                         feedbackText = "Inicia cuando quieras"
-                         }
-                         }
-                         */
-                        if let landmarks = landmarks {
-                            var hayErrores = false
+                            if exercise == .squat, let squatProgress = features[.fitness(.squats)]{
+                                let value = squatProgress.value
+                                let now = Date()
+                                
+                                
+                                if let resultado = squatTracker.procesar(value: value, now: now) {
+                                    var erroresFinales: [String] = []
 
-                                // 📌 Detector de Valgo
+                                    for (error, count) in erroresFrameRepeticion {
+                                        let porcentaje = Double(count) / Double(max(totalFramesRepeticion, 1))
+                                        
+                                        if error == "Valgo bilateral" {
+                                            if porcentaje >= 0.6 {
+                                                erroresFinales.append(error)
+                                            }
+                                        } else {
+                                            // Cualquier otro error (como Butt Wink) lo agregamos si apareció al menos 1 vez
+                                            erroresFinales.append(error)
+                                        }
+                                    }
+
+                                    DispatchQueue.main.async {
+                                        print("Repetición \(summary.squatRepsTiempos.count + 1) - errores:", erroresFinales)
+                                        summary.squatRepsTiempos.append(resultado)
+                                        summary.erroresPorRepeticion.append(erroresFinales)
+                                        erroresFrameRepeticion = [:]
+                                        totalFramesRepeticion = 0
+                                        print("✅ Repetición registrada con tracker - TFE: \(resultado.tfe), TFC: \(resultado.tfc)")
+                                    }
+                                }
+                                
+                                let reps = squatCounter.count(squatProgress.value)
+                                let progress = Int(squatProgress.value*100)
+                                feedbackText = "Progreso: \(progress)%"
+                            }
+                            if let pushUpProgress = features[.fitness(.pushUps)] {
+                                let value = pushUpProgress.value
+                                let now = Date()
+                                
+                                if let resultado = pushUpTracker.procesar(value: value, now: now) {
+                                    DispatchQueue.main.async {
+                                        summary.pushUpRepsTiempos.append(resultado)
+                                        print("✅ Push-Up registrada: TFE: \(resultado.tfe), TFC: \(resultado.tfc)")
+                                    }
+                                }
+                                
+                                let reps = pushUpCounter.count(value)
+                                let progress = Int(value * 100)
+                                feedbackText = "➡️ Push-Up progreso: \(progress)%"
+                            }
+                            if exercise == .bicepCurl, let curlProgress = features[.fitness(.bicepCurls)] {
+                                let value = curlProgress.value
+                                let now = Date()
+                                
+                                if let resultado = bicepCurlTracker.procesar(value: value, now: now) {
+                                    DispatchQueue.main.async {
+                                        summary.bicepCurlReps.append(resultado)
+                                        print("✅ Curl registrada: TFE: \(resultado.tfe), TFC: \(resultado.tfc)")
+                                    }
+                                }
+                                
+                                let reps = bicepCounter.count(value)
+                                let progress = Int(value * 100)
+                                feedbackText = "💪 Curl progreso: \(progress)%"
+                            }
+                            
+                            if exercise == .squat{
+                                    var hayErrores = false
+                                    
+                                    // 📌 Detector de Valgo
+                                var valgoFramesSeguidos = 0
+                                let umbralValgoFrames = 5  // Puedes ajustar esto
+
+                                // Dentro de tu loop de análisis de frame:
                                 let valgoDetector = ValgoDetector(landmarks: landmarks)
                                 if let valgoResult = valgoDetector.evaluate() {
+                                    // 1. Guardar para evaluación por porcentaje al final
                                     DispatchQueue.main.async {
-                                            summary.valgoFrameData.agregar(valgoResult: valgoResult)
-                                        }
+                                        summary.valgoFrameData.agregar(valgoResult: valgoResult)
+                                    }
+                                    
+                                    // 2. Detectar valgo bilateral sostenido
                                     if valgoResult.leftValgo && valgoResult.rightValgo {
+                                        valgoFramesSeguidos += 1
+                                    } else {
+                                        valgoFramesSeguidos = 0
+                                    }
+                                    
+                                    if valgoFramesSeguidos >= umbralValgoFrames {
                                         if let inicio = summary.inicioEvaluacion {
                                             let ahora = Date()
                                             let segundos = Int(ahora.timeIntervalSince(inicio))
                                             DispatchQueue.main.async {
-                                                if !summary.segundosDeValgo.contains(segundos) {
+                                                if let ultimo = summary.segundosDeValgo.last {
+                                                    if segundos - ultimo >= 2 {
+                                                        summary.segundosDeValgo.append(segundos)
+                                                    }
+                                                } else {
                                                     summary.segundosDeValgo.append(segundos)
                                                 }
                                             }
                                         }
-                                    }
                                 } else {
                                     print("⚠️ Valgo no evaluado (baja visibilidad)")
                                 }
-
-                                // 📌 Detector de Asimetría
-                                let asymmetryDetector = AsymmetryDetector(landmarks: landmarks)
-                                if let asy = asymmetryDetector.evaluate() {
-                                    if asy.overallAsymmetry {
-                                        print("⚠️ Asimetría:")
-                                        hayErrores = true
-                                        if asy.hipAsymmetry {
-                                            print("↕️ Desnivel de caderas")
+                                    // 📌 Detector de Asimetría
+                                    let asymmetryDetector = AsymmetryDetector(landmarks: landmarks)
+                                    if let asy = asymmetryDetector.evaluate() {
+                                        if asy.overallAsymmetry {
+                                            print("⚠️ Asimetría:")
                                             hayErrores = true
-                                        }
-                                        if asy.kneeAsymmetry {
-                                            print("↔️ Desalineación de rodillas")
-                                            hayErrores = true
-                                        }
-                                        if asy.shoulderAsymmetry {
-                                            print("↕️ Inclinación de hombros")
-                                            hayErrores = true
-                                        }
-                                    }
-                                }
-
-                                // 📌 Detector de Butt Wink
-                                let buttWinkDetector = ButtWinkDetector(landmarks: landmarks)
-                            if let bw = buttWinkDetector.evaluate(), bw.detected {
-                                    print("📉 Butt Wink detectado (retroversión pélvica)")
-                                    hayErrores = true
-                                }
-
-                                // 📌 Detector de Heel Lift
-                                let heelLiftDetector = HeelLiftDetector(landmarks: landmarks)
-                                if let hl = heelLiftDetector.evaluate() {
-                                    if hl.leftElevated || hl.rightElevated {
-                                        print("⚠️ Talón elevado")
-                                        hayErrores = true
-                                        if hl.leftElevated {
-                                            print("🦶 Talón izquierdo elevado")
-                                            hayErrores = true
-                                        }
-                                        if hl.leftElevated && hl.rightElevated {
-                                            print("🦶 Talón derecho e izquiedo elevados")
-                                            hayErrores = true
-                                        }
-                                        if hl.rightElevated {
-                                            print("🦶 Talón derecho elevado")
-                                            hayErrores = true
+                                            if asy.hipAsymmetry {
+                                                print("↕️ Desnivel de caderas")
+                                                hayErrores = true
+                                            }
+                                            if asy.kneeAsymmetry {
+                                                print("↔️ Desalineación de rodillas")
+                                                hayErrores = true
+                                            }
+                                            if asy.shoulderAsymmetry {
+                                                print("↕️ Inclinación de hombros")
+                                                hayErrores = true
+                                            }
                                         }
                                     }
-                                }
+                                    
+                                    // 📌 Detector de Butt Wink
+                                    let buttWinkDetector = ButtWinkDetector(landmarks: landmarks)
+                                    if let bw = buttWinkDetector.evaluate(), bw.detected {
+                                        print("📉 Butt Wink detectado (retroversión pélvica)")
+                                        hayErrores = true
+                                        
+                                        if let inicio = summary.inicioEvaluacion {
+                                            let ahora = Date()
+                                            let segundos = Int(ahora.timeIntervalSince(inicio))
+                                            DispatchQueue.main.async {
+                                                if !summary.segundosDeButtWink.contains(segundos){
+                                                    summary.segundosDeButtWink.append(segundos)
+                                                }
+                                            }
+                                        }
+                                    }
+                                    
+                                    // 📌 Detector de Heel Lift
+                                    let heelLiftDetector = HeelLiftDetector(landmarks: landmarks)
+                                    if let hl = heelLiftDetector.evaluate() {
+                                        if hl.leftElevated || hl.rightElevated {
+                                            print("⚠️ Talón elevado")
+                                            hayErrores = true
+                                            if hl.leftElevated {
+                                                print("🦶 Talón izquierdo elevado")
+                                                hayErrores = true
+                                            }
+                                            if hl.leftElevated && hl.rightElevated {
+                                                print("🦶 Talón derecho e izquiedo elevados")
+                                                hayErrores = true
+                                            }
+                                            if hl.rightElevated {
+                                                print("🦶 Talón derecho elevado")
+                                                hayErrores = true
+                                            }
+                                        }
+                                    }
                                     if !hayErrores {
-                                    print("✅ Sin errores posturales detectados.")
+                                        print("✅ Sin errores posturales detectados.")
+                                    }
                                 }
+                                
                             }
+                            
+                        }
+                    case .noPersonFound:
+                        if features[.thumbsUp()] == nil {
+                                feedbackText = "Ubícate frente a la cámara"
+                            }
+                                        case .sdkValidationError:
+                                            feedbackText = "Error con QuickPose"
                     }
                 })
             }.onDisappear {

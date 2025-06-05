@@ -7,30 +7,77 @@
 
 import SwiftUI
 import AVKit
- 
+
 struct FeedbackView: View {
     @ObservedObject var summary: PostureEvaluationSummary
-    
     @StateObject private var viewModel = FeedbackViewModel()
     
-    
     var body: some View {
-        NavigationView{
-            ScrollView{
+        NavigationView {
+            ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
+                    
+                    // 📌 SENTADILLAS
                     if !summary.squatRepsTiempos.isEmpty {
-                            Text("⏱ Tiempos por repetición:")
-                                .font(.headline)
-                                .padding(.bottom, 4)
+                        Text("⏱ Tiempos por repetición - Sentadillas:")
+                            .font(.headline)
+                            .padding(.bottom, 4)
+                        
+                        ForEach(Array(summary.squatRepsTiempos.enumerated()), id: \.offset) { (index, rep) in
+                            let ice = rep.tfc > 0 ? rep.tfe / rep.tfc : 0.0
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(String(format: "- Repetición %d:", index + 1))
+                                    .fontWeight(.semibold)
+                                Text(String(format: "   • Fase excéntrica: %.2fs", rep.tfe))
+                                Text(String(format: "   • Fase concéntrica: %.2fs", rep.tfc))
+                                Text(String(format: "   • ICE: %.2f", ice))
 
-                            ForEach(Array(summary.squatRepsTiempos.enumerated()), id: \.offset) { (index, rep) in
-                                let ice = rep.tfc > 0 ? rep.tfe / rep.tfc : 0.0
-                                Text(String(format: "- Repetición %d:\n   • Fase excéntrica: %.2fs\n   • Fase concéntrica: %.2fs\n   • ICE: %.2f",
-                                            index + 1, rep.tfe, rep.tfc, ice))
-                                    .padding(.bottom, 4)
+                                if index < summary.erroresPorRepeticion.count {
+                                    let errores = summary.erroresPorRepeticion[index]
+                                    if errores.isEmpty {
+                                        Text("   ✅ Sin errores posturales detectados.")
+                                            .foregroundColor(.green)
+                                    } else {
+                                        Text("   ⚠️ Errores detectados:")
+                                            .foregroundColor(.red)
+                                        ForEach(errores, id: \.self) { error in
+                                            Text("      • \(error)")
+                                                .foregroundColor(.red)
+                                        }
+                                    }
+                                }
                             }
+                            .padding(.bottom, 6)
                         }
-                    Text("Errores detectados:")
+                    }
+
+                    if !summary.pushUpRepsTiempos.isEmpty {
+                        Text("💪 Análisis profundo de repeticiones - Flexiones:")
+                            .font(.headline)
+                            .padding(.bottom, 4)
+                        
+                        ForEach(Array(summary.pushUpRepsTiempos.enumerated()), id: \.offset) { (index, rep) in
+                            let ice = rep.tfc > 0 ? rep.tfe / rep.tfc : 0.0
+                            Text(String(format: "- Repetición %d:\n   • Fase descendente: %.2fs\n   • Fase ascendente: %.2fs\n   • ICE: %.2f",
+                                        index + 1, rep.tfe, rep.tfc, ice))
+                                .padding(.bottom, 4)
+                        }
+                    }
+
+                    if !summary.bicepCurlReps.isEmpty {
+                        Text("💪 Análisis profundo de repeticiones - Curl de Bíceps:")
+                            .font(.headline)
+                            .padding(.bottom, 4)
+                        
+                        ForEach(Array(summary.bicepCurlReps.enumerated()), id: \.offset) { (index, rep) in
+                            let ice = rep.tfc > 0 ? rep.tfe / rep.tfc : 0.0
+                            Text(String(format: "- Repetición %d:\n   • Fase excéntrica: %.2fs\n   • Fase concéntrica: %.2fs\n   • ICE: %.2f",
+                                        index + 1, rep.tfe, rep.tfc, ice))
+                                .padding(.bottom, 4)
+                        }
+                    }
+
+                    Text("🩺 Errores detectados:")
                         .font(.headline)
                     
                     let valgoFinal = summary.valgoFrameData.evaluar(threshold: 0.6)
@@ -48,19 +95,39 @@ struct FeedbackView: View {
                                 Text(String(format: "- %02d:%02d ⚠️ Valgo en ambas rodillas", minutos, segundos))
                             }
                         }
-                    } else {
-                        Text("✅ Buena alineación de rodillas durante la ejecución.")
+                    }else if !summary.segundosDeButtWink.isEmpty {
+                        Text("⏱ Momentos con Butt Wink (retroversión pélvica):")
+                            .font(.subheadline)
+                            .padding(.top, 4)
+                        
+                        ForEach(summary.segundosDeButtWink.sorted(), id: \.self) { segundo in
+                            let minutos = segundo / 60
+                            let segundos = segundo % 60
+                            Text(String(format: "- %02d:%02d 📉 Butt Wink detectado", minutos, segundos))
+                        }
                     }
-                    
-                    // Aquí puedes agregar evaluaciones similares si agregas más detectores a summary
+                    else if !summary.squatRepsTiempos.isEmpty {
+                        Text("✅ Buena ejecución de sentadillas. (Sin errores posturales detectados)")
+                    }
+
+                    // 📌 MENSAJES FIJOS SI NO HAY DETECTORES PARA PUSHUPS O CURLS
+                    if !summary.pushUpRepsTiempos.isEmpty {
+                        Text("✅ Buena ejecución de flexiones.")
+                            .padding(.top, 8)
+                    }
+
+                    if !summary.bicepCurlReps.isEmpty {
+                        Text("✅ Buena ejecución de curl de bíceps.")
+                            .padding(.top, 8)
+                    }
                 }
+                .padding()
             }
         }
     }
 }
-    #Preview {
-        let mockSummary = PostureEvaluationSummary()
-        return FeedbackView(summary: mockSummary)
-    }
 
-
+#Preview {
+    let mockSummary = PostureEvaluationSummary()
+    return FeedbackView(summary: mockSummary)
+}

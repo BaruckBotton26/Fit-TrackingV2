@@ -101,10 +101,12 @@ struct EvaluacionView: View {
     @State private var navegarAFinal = false
     @StateObject private var summary = PostureEvaluationSummary()
 
+    let exercise: ExerciseType
+
     var body: some View {
         NavigationStack {
             ZStack {
-                QuickPoseService(navegarAFinal: $navegarAFinal, summary: summary)
+                QuickPoseService(navegarAFinal: $navegarAFinal, summary: summary, exercise: exercise)
 
                 NavigationLink(destination: FeedbackView(summary: summary),
                                isActive: $navegarAFinal) {
@@ -117,5 +119,5 @@ struct EvaluacionView: View {
 }
 
 #Preview {
-    EvaluacionView()
+    EvaluacionView(exercise: .pushUp)
 }

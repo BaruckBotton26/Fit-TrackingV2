@@ -6,9 +6,13 @@
 //
 
 import SwiftUI
+import Firebase
 
 @main
 struct Fit_TrackingApp: App {
+    init() {
+           FirebaseApp.configure() // 👈 Esto inicializa Firebase al arrancar la app
+       }
     var body: some Scene {
         WindowGroup {
             AppRootView()

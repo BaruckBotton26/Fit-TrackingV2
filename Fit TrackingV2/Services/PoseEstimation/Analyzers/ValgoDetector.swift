@@ -74,12 +74,6 @@ class ValgoDetector {
             let leftSeverity = leftValgo ? abs(kneeL.x - hipL.x) * 5 : 0.0
             let rightSeverity = rightValgo ? abs(hipR.x - kneeR.x) * 5 : 0.0
 
-            print("🦵 LeftAngle: \(leftAngle), RightAngle: \(rightAngle), Ratio: \(ratio)")
-            print("🔍 Valgo izquierda: \(leftValgo), derecha: \(rightValgo)")
-            
-            // Imprime posiciones para depuración
-            print("🦿 Left: Knee \(kneeL.x), Hip \(hipL.x), Ankle \(ankleL.x)")
-            print("🦿 Right: Knee \(kneeR.x), Hip \(hipR.x), Ankle \(ankleR.x)")
 
             return ValgoResult(
                 leftValgo: leftValgo,

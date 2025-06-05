@@ -6,7 +6,7 @@
 //
 
 import SwiftUI
-
+import FirebaseFirestore
 struct InicioView: View {
     @StateObject private var viewModel = InicioViewModel()
     var body: some View {
@@ -61,12 +61,28 @@ struct InicioView: View {
                     .padding()
                     .navigationTitle("Fit Tracking")
                     .navigationDestination(isPresented: $viewModel.puedeNavegar) {
-                        EvaluacionView()
+                        ExerciseSelectionView()
                     }
                 }
             }
         }
+        .onAppear {
+            let db = Firestore.firestore()
+            db.collection("testLogs").addDocument(data: [
+                "mensaje": "¡Firebase conectado!",
+                "fecha": Timestamp(date: Date())
+            ]) { error in
+                if let error = error {
+                    print("❌ Error al subir prueba: \(error.localizedDescription)")
+                } else {
+                    print("✅ Documento de prueba guardado en Firestore")
+                }
+            }
+        }
+        
     }
+    
+    
 }
         #Preview {
             InicioView()
