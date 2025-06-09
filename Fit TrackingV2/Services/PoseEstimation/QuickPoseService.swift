@@ -13,6 +13,10 @@ struct QuickPoseService: View {
     private var quickPose = QuickPose(sdkKey: "01JTC3H0M71GVAKTPSMJRCN7K2")
     let exercise: ExerciseType
     enum PushUpPhase { case idle, lowering, pushing }
+    @State private var mostrarIndicadorFinalizar = false
+    @State private var ultimaConfirmacion = Date()
+    @State private var ultimaLandmarks: QuickPose.Landmarks?
+    @State private var inicioReposo: Date?
     @State private var pushUpPhase: PushUpPhase = .idle
     @State private var pushDownStart: Date?
     @State private var pushUpStart: Date?
@@ -50,6 +54,57 @@ struct QuickPoseService: View {
         self.exercise = exercise
     }
     let umbralROM: Double = 0.85
+    private func guardarEnFirebaseYFinalizar() {
+        let valgoEvaluacion = summary.valgoFrameData.evaluar()
+        summary.valgoDetectedLeft = valgoEvaluacion.left
+        summary.valgoDetectedRight = valgoEvaluacion.right
+
+        var errores: [String: Any] = [:]
+        if exercise == .squat {
+            errores["valgo_detectado"] = valgoEvaluacion.left || valgoEvaluacion.right
+            errores["segundosDeValgo"] = summary.segundosDeValgo.sorted()
+            errores["buttWink_detectado"] = !summary.segundosDeButtWink.isEmpty
+            errores["segundosDeButtWink"] = summary.segundosDeButtWink.sorted()
+        }
+
+        var repeticiones: [(Double, Double)] = []
+        switch exercise {
+        case .squat: repeticiones = summary.squatRepsTiempos
+        case .pushUp: repeticiones = summary.pushUpRepsTiempos
+        case .bicepCurl: repeticiones = summary.bicepCurlReps
+        case .overheadDumbellPress: repeticiones = summary.overheadDumbellPressReps
+        }
+
+        FirebaseService.shared.guardarEvaluacion(
+            ejercicio: String(describing: exercise),
+            repeticiones: repeticiones,
+            errores: errores
+        )
+    }
+    func hayMovimiento(actuales: QuickPose.Landmarks?, anteriores: QuickPose.Landmarks?, umbral: Double = 0.015) -> Bool {
+        guard let actuales = actuales, let anteriores = anteriores else { return true }
+
+        // Lista de puntos clave a comparar
+        let puntosClave: [QuickPose.Landmarks.Body] = [
+            .shoulder(side: .left), .shoulder(side: .right),
+            .hip(side: .left), .hip(side: .right),
+            .knee(side: .left), .knee(side: .right)
+        ]
+
+        for punto in puntosClave {
+            let actual = actuales.landmark(forBody: punto)
+            let anterior = anteriores.landmark(forBody: punto)
+
+            let dx = actual.x - anterior.x
+            let dy = actual.y - anterior.y
+
+            if abs(dx) > umbral || abs(dy) > umbral {
+                return true // Se detectó movimiento
+            }
+        }
+
+        return false // Quietud total
+    }
     
     func detectarErroresPosturales(landmarks: QuickPose.Landmarks?) -> [String] {
         guard let landmarks = landmarks else { return [] }
@@ -104,36 +159,10 @@ struct QuickPoseService: View {
                 Button(action: {
                     quickPose.stop()
                     DispatchQueue.main.async {
-                        let valgoEvaluacion = summary.valgoFrameData.evaluar()
-                        summary.valgoDetectedLeft = valgoEvaluacion.left
-                        summary.valgoDetectedRight = valgoEvaluacion.right
-                        
-                        var errores: [String: Any] = [:]
-                               if exercise == .squat {
-                                   errores["valgo_detectado"] = valgoEvaluacion.left || valgoEvaluacion.right
-                                   errores["segundosDeValgo"] = summary.segundosDeValgo.sorted()
-                                   errores["buttWink_detectado"] = !summary.segundosDeButtWink.isEmpty
-                                   errores["segundosDeButtWink"] = summary.segundosDeButtWink.sorted()
-                               }
-
-                               // 🏋️‍♂️ Elegir repeticiones según el ejercicio
-                               var repeticiones: [(Double, Double)] = []
-                               switch exercise {
-                               case .squat: repeticiones = summary.squatRepsTiempos
-                               case .pushUp: repeticiones = summary.pushUpRepsTiempos
-                               case .bicepCurl: repeticiones = summary.bicepCurlReps
-                               case .overheadDumbellPress: repeticiones = summary.overheadDumbellPressReps
-                               }
-
-                               // 📤 Guardar en Firestore
-                               FirebaseService.shared.guardarEvaluacion(
-                                   ejercicio: String(describing: exercise),
-                                   repeticiones: repeticiones,
-                                   errores: errores
-                               )
-
+                        guardarEnFirebaseYFinalizar()
+                       navegarAFinal = true
                     }
-                       navegarAFinal = true                }) {
+                    }) {
                     Text("Finalizar Evaluación")
                         .padding()
                         .frame(maxWidth: .infinity)
@@ -206,6 +235,38 @@ struct QuickPoseService: View {
                              print("TIPO DE LANDMARKS:", type(of: landmarks))
                              */
                             guard let landmarks = landmarks else { return }
+                            if evaluacionIniciada {
+                                if let prevLandmarks = ultimaLandmarks,
+                                   !hayMovimiento(actuales: landmarks, anteriores: prevLandmarks) {
+                                    
+                                    if inicioReposo == nil {
+                                        inicioReposo = Date()
+                                    }
+                                    
+                                    let tiempoReposo = Date().timeIntervalSince(inicioReposo!)
+                                    
+                                    if tiempoReposo > 5.0 {
+                                        mostrarIndicadorFinalizar = true
+                                        
+                                        if Date().timeIntervalSince(ultimaConfirmacion) > 3.0 {
+                                            DispatchQueue.main.async {
+                                            quickPose.stop()
+                                            guardarEnFirebaseYFinalizar()
+                                            feedbackText = "✅ Evaluación finalizada por quietud"
+                                            navegarAFinal = true
+                                            return
+                                        }
+                                        }
+                                    }
+                                } else {
+                                    mostrarIndicadorFinalizar = false
+                                    inicioReposo = nil
+                                    ultimaConfirmacion = Date()
+                                }
+                                
+                                ultimaLandmarks = landmarks
+                            }
+
                             let erroresFrame = detectarErroresPosturales(landmarks: landmarks)
                             erroresDetectadosActuales.formUnion(erroresFrame)
                             for error in erroresFrame {
