@@ -33,19 +33,19 @@
 
 ## 📈 Avances semanales
 
-- **Semana actual:** Integración completa con el SDK de QuickPose para post-procesamiento y visualización de articulaciones.
+- **Semana Anteriores:** Integración completa con el SDK de QuickPose para post-procesamiento y visualización de articulaciones.
 - Se reemplazó MediaPipe por QuickPose para mejorar rendimiento y control en dispositivos iOS.
 - Se logró representar con éxito los **33 puntos clave del cuerpo humano**, incluyendo pies y manos.
 - Se automatizó la navegación a la vista de Feedback tras el procesamiento del video.
 - Implementación de lógica visual de retroalimentación (errores y recomendaciones).
+- **Semana actual:** Finalización automática de la evaluación mediante detección de quietud corporal prolongada.
+- Se implementó lógica para detectar 5 segundos de reposo seguidos de 3 segundos sin movimiento para finalizar sin necesidad de presionar un botón.
+- Se mantiene opción de finalización manual mediante botón visible durante la evaluación.
+- Evaluación de repeticiones y errores posturales ahora ocurre solo tras detectar el gesto de pulgar arriba.
+- Se optimizó la detección de errores como valgo, butt wink, asimetría, y elevación de talón con lógica por porcentaje de frames y segundos acumulados.
+- Se integró guardado automático en Firebase de repeticiones, tiempos y errores tras finalizar la evaluación (manual o automática).
 
-## 📱 Captura de pantalla
 
-![image](https://github.com/user-attachments/assets/ce1f2c19-6ee3-4e4b-bb63-8d80c1786477)
-
-![image](https://github.com/user-attachments/assets/a4252d8c-8689-41df-99b0-a75ec929c533)
-
-![image](https://github.com/user-attachments/assets/75996a0b-da08-44b0-be67-5a4f5ea6599d)
 
 ## 🗂️ Estructura del proyecto
 
