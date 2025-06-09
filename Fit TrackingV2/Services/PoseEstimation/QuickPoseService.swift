@@ -37,6 +37,8 @@ struct QuickPoseService: View {
     @State private var erroresDetectadosActuales: Set<String> = []
     @State private var erroresFrameRepeticion: [String: Int] = [:]
     @State private var totalFramesRepeticion: Int = 0
+    @State private var overheadDumbellPressTracker = OverheadDumbbellPressTracker()
+    @State private var overheadDumbellCounter = QuickPoseThresholdCounter()
     @State private var valgoFramesSeguidos = 0
     let umbralValgoFrames = 10
 
@@ -120,6 +122,7 @@ struct QuickPoseService: View {
                                case .squat: repeticiones = summary.squatRepsTiempos
                                case .pushUp: repeticiones = summary.pushUpRepsTiempos
                                case .bicepCurl: repeticiones = summary.bicepCurlReps
+                               case .overheadDumbellPress: repeticiones = summary.overheadDumbellPressReps
                                }
 
                                // 📤 Guardar en Firestore
@@ -170,8 +173,9 @@ struct QuickPoseService: View {
                                             selectedFeatures.append(.fitness(.pushUps))
                                         case .bicepCurl:
                                             selectedFeatures.append(.fitness(.bicepCurls))
+                                        case .overheadDumbellPress:
+                                            selectedFeatures.append(.fitness(.overheadDumbbellPress))
                                         }
-                                        
                                         quickPose.update(features: selectedFeatures)
                                     }
                                 }
@@ -266,7 +270,7 @@ struct QuickPoseService: View {
                                 
                                 let reps = squatCounter.count(squatProgress.value)
                                 let progress = Int(squatProgress.value*100)
-                                feedbackText = "Progreso: \(progress)%"
+                                feedbackText = "Progreso: \(progress)% | Repeticiones: \(reps.count)"
                             }
                             if let pushUpProgress = features[.fitness(.pushUps)] {
                                 let value = pushUpProgress.value
@@ -281,7 +285,7 @@ struct QuickPoseService: View {
                                 
                                 let reps = pushUpCounter.count(value)
                                 let progress = Int(value * 100)
-                                feedbackText = "➡️ Push-Up progreso: \(progress)%"
+                                feedbackText = "➡️ progreso: \(progress)% | Repeticiones: \(reps.count)"
                             }
                             if exercise == .bicepCurl, let curlProgress = features[.fitness(.bicepCurls)] {
                                 let value = curlProgress.value
@@ -296,7 +300,21 @@ struct QuickPoseService: View {
                                 
                                 let reps = bicepCounter.count(value)
                                 let progress = Int(value * 100)
-                                feedbackText = "💪 Curl progreso: \(progress)%"
+                                feedbackText = "💪progreso: \(progress)% | Repeticiones: \(reps.count)"
+                            }
+                            if exercise == .overheadDumbellPress, let DumbellProgress = features[.fitness(.overheadDumbbellPress)]{
+                                let value = DumbellProgress.value
+                                let now = Date()
+                                
+                                if let resultado = overheadDumbellPressTracker.procesar(value: value, now: now) {
+                                    DispatchQueue.main.async {
+                                        summary.overheadDumbellPressReps.append(resultado)
+                                        print("✅ Dumbell registrada: TFE: \(resultado.tfe), TFC: \(resultado.tfc)")
+                                    }
+                                }
+                                let reps = overheadDumbellCounter.count(value)
+                                let progress = Int(value * 100)
+                                feedbackText = "💪 progreso: \(progress)% | Repeticiones: \(reps.count)"
                             }
                             
                             if exercise == .squat{

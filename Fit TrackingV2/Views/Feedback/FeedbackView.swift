@@ -76,6 +76,23 @@ struct FeedbackView: View {
                                 .padding(.bottom, 4)
                         }
                     }
+                    if !summary.overheadDumbellPressReps.isEmpty {
+                        Text("💪 Análisis profundo de repeticiones - Press Militar:")
+                            .font(.headline)
+                            .padding(.bottom, 4)
+
+                        ForEach(Array(summary.overheadDumbellPressReps.enumerated()), id: \.offset) { (index, rep) in
+                            let ice = rep.tfc > 0 ? rep.tfe / rep.tfc : 0.0
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(String(format: "- Repetición %d:", index + 1))
+                                    .fontWeight(.semibold)
+                                Text(String(format: "   • Fase excéntrica: %.2fs", rep.tfe))
+                                Text(String(format: "   • Fase concéntrica: %.2fs", rep.tfc))
+                                Text(String(format: "   • ICE: %.2f", ice))
+                            }
+                            .padding(.bottom, 6)
+                        }
+                    }
 
                     Text("🩺 Errores detectados:")
                         .font(.headline)
@@ -118,6 +135,10 @@ struct FeedbackView: View {
 
                     if !summary.bicepCurlReps.isEmpty {
                         Text("✅ Buena ejecución de curl de bíceps.")
+                            .padding(.top, 8)
+                    }
+                    if !summary.overheadDumbellPressReps.isEmpty {
+                        Text("✅ Buena ejecución de Press Militar.")
                             .padding(.top, 8)
                     }
                 }

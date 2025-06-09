@@ -7,7 +7,7 @@
 import SwiftUI
 
 enum ExerciseType: Hashable {
-    case squat, pushUp, bicepCurl
+    case squat, pushUp, bicepCurl, overheadDumbellPress
 }
 
 struct ExerciseSelectionView: View {
@@ -53,6 +53,19 @@ struct ExerciseSelectionView: View {
                     selection: $selectedExercise
                 ) {
                     Text("Curl de Bíceps")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.blue)
+                        .cornerRadius(12)
+                }
+                NavigationLink(
+                    destination: EvaluacionView(exercise: .overheadDumbellPress),
+                    tag: ExerciseType.overheadDumbellPress,
+                    selection: $selectedExercise
+                ) {
+                    Text("Press Militar")
                         .font(.headline)
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)

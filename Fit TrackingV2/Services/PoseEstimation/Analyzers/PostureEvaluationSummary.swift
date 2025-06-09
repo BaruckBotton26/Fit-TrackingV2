@@ -18,6 +18,7 @@ class PostureEvaluationSummary: ObservableObject {
     @Published var squatRepsTiempos: [(tfe: Double, tfc: Double)] = []
     @Published var pushUpRepsTiempos: [(tfe: Double, tfc: Double)] = []
     @Published var bicepCurlReps: [(tfe: Double, tfc: Double)] = []
+    @Published var overheadDumbellPressReps: [(tfe: Double, tfc: Double)] = []
     @Published var erroresPorRepeticion: [[String]] = []
 
 }
