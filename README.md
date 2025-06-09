@@ -5,8 +5,7 @@
 ## 🚀 ¿Qué hace la app?
 
 - Permite **grabar un video** desde la cámara del dispositivo.
-- Procesa el video **sin usar la cámara en tiempo real**, mediante el sistema de **post-procesamiento de QuickPose**.
-- Dibuja **keypoints y joints** sobre cada frame del video.
+- **usa la cámara en tiempo real**, mediante el sistema de **post-procesamiento de QuickPose**.
 - Detecta errores comunes de postura como:
   - 🔴 Profundidad insuficiente
   - 🔴 Rodillas desalineadas
@@ -29,10 +28,8 @@
 |-------------------------------|---------|
 | Grabación de video            | ✅      |
 | Post-procesamiento del video  | ✅      |
-| Visualización de keypoints    | ✅      |
 | Análisis y retroalimentación  | ✅      |
 | Navegación entre vistas       | ✅      |
-| Persistencia del video final  | ✅      |
 
 ## 📈 Avances semanales
 
@@ -44,7 +41,11 @@
 
 ## 📱 Captura de pantalla
 
-![Demo](./path_to_your_screenshot.png)
+![image](https://github.com/user-attachments/assets/ce1f2c19-6ee3-4e4b-bb63-8d80c1786477)
+
+![image](https://github.com/user-attachments/assets/a4252d8c-8689-41df-99b0-a75ec929c533)
+
+![image](https://github.com/user-attachments/assets/75996a0b-da08-44b0-be67-5a4f5ea6599d)
 
 ## 🗂️ Estructura del proyecto
 
