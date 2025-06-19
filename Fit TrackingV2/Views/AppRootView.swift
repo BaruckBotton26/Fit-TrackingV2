@@ -8,7 +8,7 @@ import SwiftUI
 
 struct AppRootView: View {
     @State private var mostrarInicio = false
-
+    
     var body: some View {
         ZStack {
             if mostrarInicio {
@@ -22,9 +22,14 @@ struct AppRootView: View {
             }
         }
         .onAppear {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                withAnimation {
-                    mostrarInicio = true
+            if CommandLine.arguments.contains("-UITest") {
+                // 🚀 Mostrar Inicio de inmediato en modo test
+                mostrarInicio = true
+            } else {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                    withAnimation {
+                        mostrarInicio = true
+                    }
                 }
             }
         }

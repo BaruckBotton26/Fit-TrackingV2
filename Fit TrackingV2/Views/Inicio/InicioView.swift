@@ -25,7 +25,9 @@ struct InicioView: View {
                         
                         Button {
                             viewModel.solicitarPermisoCamara()
-                        } label: {
+                                
+                        }
+                        label: {
                             Label("Comenzar Ejercicio", systemImage: "camera")
                                 .frame(maxWidth: .infinity)
                                 .padding()
@@ -33,6 +35,7 @@ struct InicioView: View {
                                 .foregroundColor(.white)
                                 .cornerRadius(10)
                         }
+                        .accessibilityIdentifier("comenzarEjercicio")
                         
                         Text("Acerca de")
                             .font(.title2)

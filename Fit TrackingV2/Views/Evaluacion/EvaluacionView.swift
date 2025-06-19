@@ -107,7 +107,9 @@ struct EvaluacionView: View {
         NavigationStack {
             ZStack {
                 QuickPoseService(navegarAFinal: $navegarAFinal, summary: summary, exercise: exercise)
-
+                Text("EvaluacionViewLoaded")
+                       .accessibilityIdentifier("evaluacionViewLabel")
+                       .hidden()
                 NavigationLink(destination: FeedbackView(summary: summary),
                                isActive: $navegarAFinal) {
                     EmptyView()

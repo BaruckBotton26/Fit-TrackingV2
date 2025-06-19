@@ -81,14 +81,16 @@ struct QuickPoseService: View {
             errores: errores
         )
     }
-    func hayMovimiento(actuales: QuickPose.Landmarks?, anteriores: QuickPose.Landmarks?, umbral: Double = 0.015) -> Bool {
+    func hayMovimiento(actuales: QuickPose.Landmarks?, anteriores: QuickPose.Landmarks?, umbral: Double = 0.02) -> Bool {
         guard let actuales = actuales, let anteriores = anteriores else { return true }
 
         // Lista de puntos clave a comparar
         let puntosClave: [QuickPose.Landmarks.Body] = [
             .shoulder(side: .left), .shoulder(side: .right),
             .hip(side: .left), .hip(side: .right),
-            .knee(side: .left), .knee(side: .right)
+            .knee(side: .left), .knee(side: .right),
+            .elbow(side: .left), .elbow(side: .right),
+            .wrist(side: .left), .wrist(side: .right)
         ]
 
         for punto in puntosClave {
@@ -169,6 +171,7 @@ struct QuickPoseService: View {
                         .background(Color.red)
                         .foregroundColor(.white)
                         .cornerRadius(12)
+                        .accessibilityIdentifier("FinalizarEvaluationButton")
                 }
                 .padding(.horizontal, 20)
                 .padding(.bottom, 10)

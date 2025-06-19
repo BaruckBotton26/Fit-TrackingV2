@@ -9,7 +9,48 @@ import SwiftUI
 enum ExerciseType: Hashable {
     case squat, pushUp, bicepCurl, overheadDumbellPress
 }
+struct ExerciseSelectionView: View {
+    @State private var selectedExercise: ExerciseType? = nil
 
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 20) { // Reducido de 40 a 20
+                Text("Selecciona tu ejercicio")
+                    .font(.title)
+                    .bold()
+                    .padding(.bottom, 60)
+
+                ForEach([
+                    (ExerciseType.squat, "Sentadillas"),
+                    (ExerciseType.pushUp, "Flexiones"),
+                    (ExerciseType.bicepCurl, "Curl de bíceps"),
+                    (ExerciseType.overheadDumbellPress, "Press militar")
+                ], id: \.0) { type, title in
+                    NavigationLink(
+                        destination: EvaluacionView(exercise: type),
+                        tag: type,
+                        selection: $selectedExercise
+                    ) {
+                        Text(title)
+                            .font(.headline)
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity, minHeight: 	40)
+                            .padding()
+                            .background(Color.blue)
+                            .cornerRadius(12)
+                            .shadow(radius: 1)
+                            .accessibilityIdentifier("button_\(type)")
+                    }
+                }
+            }
+            .padding(.bottom, 200)
+            .frame(maxWidth: 350)
+            .frame(maxHeight: .infinity, alignment: .center) // Centrado vertical
+            .background(Color.white)
+        }
+    }
+}
+/*
 struct ExerciseSelectionView: View {
     @State private var selectedExercise: ExerciseType? = nil
 
@@ -78,7 +119,7 @@ struct ExerciseSelectionView: View {
         }
     }
 }
-
+*/
 #Preview {
     ExerciseSelectionView()
 }
