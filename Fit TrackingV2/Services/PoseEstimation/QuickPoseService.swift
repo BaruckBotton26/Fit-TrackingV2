@@ -54,6 +54,63 @@ struct QuickPoseService: View {
         self.exercise = exercise
     }
     let umbralROM: Double = 0.85
+    func exportarResultadosACSV() {
+        let fileManager = FileManager.default
+        let docsURL = fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let fileURL = docsURL.appendingPathComponent("resultado_biomecanico.csv")
+
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        let fecha = formatter.string(from: Date())
+
+        // Cabecera
+        let headers = "Fecha,Ejercicio,Repeticiones,ValgoIzq,ValgoDer,ValgoBilateral,ButtWink,SegundosValgo,SegundosButtWink\n"
+
+        // Repeticiones por tipo de ejercicio
+        let repeticiones: [(Double, Double)]
+        switch exercise {
+        case .squat:
+            repeticiones = summary.squatRepsTiempos
+        case .pushUp:
+            repeticiones = summary.pushUpRepsTiempos
+        case .bicepCurl:
+            repeticiones = summary.bicepCurlReps
+        case .overheadDumbellPress:
+            repeticiones = summary.overheadDumbellPressReps
+        }
+
+        // Valgo bilateral
+        let valgoBilateral = summary.valgoDetectedLeft && summary.valgoDetectedRight
+
+        // Convertir arrays en strings legibles
+        let segundosValgo = summary.segundosDeValgo.sorted().map { String($0) }.joined(separator: "-")
+        let segundosButtWink = summary.segundosDeButtWink.sorted().map { String($0) }.joined(separator: "-")
+
+        // Fila de datos con orden correcto
+        let row = "\(fecha),\(exercise),\(repeticiones.count),\(summary.valgoDetectedLeft),\(summary.valgoDetectedRight),\(valgoBilateral),\(!summary.segundosDeButtWink.isEmpty),\"\(segundosValgo)\",\"\(segundosButtWink)\"\n"
+
+        // Crear archivo si no existe
+        if !fileManager.fileExists(atPath: fileURL.path) {
+            do {
+                try headers.write(to: fileURL, atomically: true, encoding: .utf8)
+            } catch {
+                print("❌ Error al crear archivo CSV: \(error.localizedDescription)")
+            }
+        }
+
+        // Añadir fila al archivo
+        do {
+            let fileHandle = try FileHandle(forWritingTo: fileURL)
+            fileHandle.seekToEndOfFile()
+            if let data = row.data(using: .utf8) {
+                fileHandle.write(data)
+            }
+            fileHandle.closeFile()
+            print("✅ CSV guardado automáticamente: \(fileURL.path)")
+        } catch {
+            print("❌ Error al guardar CSV: \(error.localizedDescription)")
+        }
+    }
     private func guardarEnFirebaseYFinalizar() {
         let valgoEvaluacion = summary.valgoFrameData.evaluar()
         summary.valgoDetectedLeft = valgoEvaluacion.left
@@ -80,6 +137,7 @@ struct QuickPoseService: View {
             repeticiones: repeticiones,
             errores: errores
         )
+        exportarResultadosACSV()
     }
     func hayMovimiento(actuales: QuickPose.Landmarks?, anteriores: QuickPose.Landmarks?, umbral: Double = 0.02) -> Bool {
         guard let actuales = actuales, let anteriores = anteriores else { return true }
